@@ -1,0 +1,113 @@
+name: 🚀 Deploy Frontend (production)
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: main
+
+    steps:
+      # ---------------- CHECKOUT ----------------
+      - name: 🧾 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ---------------- AUTH ----------------
+      - name: 🔐 Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: ☁️ Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      # ---------------- VERSIONING ----------------
+      - name: 🏷️ Generate production version
+        run: |
+          set -e
+
+          git fetch --tags
+
+          PREFIX="prod-v"
+
+          LAST_TAG=$(git tag -l "${PREFIX}[0-9]*.[0-9]*.[0-9]*" | sort -V | tail -n 1)
+
+          if [ -z "$LAST_TAG" ]; then
+            VERSION="${PREFIX}1.0.0"
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "${LAST_TAG#${PREFIX}}"
+            PATCH=$((PATCH + 1))
+            VERSION="${PREFIX}${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          SAFE_VERSION="$(echo "${VERSION#${PREFIX}}" | tr '.' '-')-${SHORT_SHA}"
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "SAFE_VERSION=$SAFE_VERSION" >> $GITHUB_ENV
+
+          echo "VERSION=$VERSION"
+          echo "SAFE_VERSION=$SAFE_VERSION"
+
+      # ---------------- CONFIGURE DOCKER ----------------
+      - name: � Configure Docker
+        run: |
+          gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev --quiet
+
+      # ---------------- BUILD & PUSH IMAGE ----------------
+      - name: 🏗️ Build & Push Docker Image
+        run: |
+          set -e
+
+          IMAGE="${{ vars.REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.REPO_NAME }}/frontend:${VERSION}"
+
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL="${{ secrets.NEXT_PUBLIC_API_URL }}" \
+            --build-arg NEXT_PUBLIC_FIREBASE_API_KEY="${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}" \
+            --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}" \
+            --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID="${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}" \
+            --build-arg NEXT_PUBLIC_FIREBASE_APP_ID="${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}" \
+            -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      # ---------------- DEPLOY ----------------
+      - name: 🚀 Deploy to Cloud Run
+        run: |
+          set -e
+
+          gcloud run deploy ${{ vars.SERVICE_NAME }} \
+            --image "$IMAGE" \
+            --region "${{ vars.REGION }}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --service-account "${{ secrets.CLOUDRUN_SA }}" \
+            --revision-suffix "${SAFE_VERSION}" \
+            --set-env-vars="NODE_ENV=production"
+
+      # ---------------- CREATE TAG ----------------
+      - name: 🏷️ Create Git Tag
+        run: |
+          set -e
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag already exists: $VERSION"
+            exit 0
+          fi
+
+          git tag "$VERSION"
+          git push origin "$VERSION"

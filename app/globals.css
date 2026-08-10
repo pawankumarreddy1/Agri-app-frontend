@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #14241c;
+  --ink-muted: #4a5c52;
+  --bg: #f3f6f2;
+  --bg-deep: #0c2418;
+  --leaf: #1b6b45;
+  --leaf-bright: #2f8f5b;
+  --leaf-soft: #d8ebe0;
+  --gold: #c48a1a;
+  --gold-soft: #f5e6c8;
+  --line: rgba(20, 36, 28, 0.12);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans), 'DM Sans', system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-display), 'Fraunces', Georgia, serif;
+}
+
+@keyframes ac-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ac-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ac-ken {
+  from { transform: scale(1.08); }
+  to { transform: scale(1); }
+}
+
+.ac-animate-up {
+  animation: ac-fade-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ac-animate-up-delay {
+  animation: ac-fade-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+}
+
+.ac-animate-up-delay-2 {
+  animation: ac-fade-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+}
+
+.ac-animate-in {
+  animation: ac-fade-in 1.1s ease both;
+}
+
+.ac-ken {
+  animation: ac-ken 12s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ac-animate-up,
+  .ac-animate-up-delay,
+  .ac-animate-up-delay-2,
+  .ac-animate-in,
+  .ac-ken {
+    animation: none;
+  }
+}

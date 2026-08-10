@@ -1,0 +1,102 @@
+name: 🚀 Deploy Frontend (Dev)
+
+on:
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: develop
+
+    steps:
+      # ── CHECKOUT ──────────────────────────────────────────────────────────
+      - name: 🧾 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── AUTH ──────────────────────────────────────────────────────────────
+      - name: 🔐 Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: ☁️ Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      # ── VERSIONING (dev-vX.Y.Z) ───────────────────────────────────────────
+      - name: 🏷️ Generate DEV semantic version
+        run: |
+          set -e
+          git fetch --tags
+          PREFIX="dev-v"
+          LAST_TAG=$(git tag -l "${PREFIX}[0-9]*.[0-9]*.[0-9]*" \
+            | sort -V \
+            | tail -n 1)
+          if [ -z "$LAST_TAG" ]; then
+            VERSION="${PREFIX}1.0.0"
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "${LAST_TAG#${PREFIX}}"
+            PATCH=$((PATCH + 1))
+            VERSION="${PREFIX}$MAJOR.$MINOR.$PATCH"
+          fi
+          SAFE_VERSION=$(echo "${VERSION#${PREFIX}}" | tr '.' '-')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "SAFE_VERSION=$SAFE_VERSION" >> $GITHUB_ENV
+          echo "Dev Version: $VERSION"
+          echo "Revision suffix: $SAFE_VERSION"
+
+      # ── DOCKER AUTH ───────────────────────────────────────────────────────
+      - name: 🔐 Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev --quiet
+
+      # ── BUILD & PUSH ──────────────────────────────────────────────────────
+      - name: 🐳 Build & Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ vars.REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.REPO_NAME }}/${{ vars.REPO_NAME }}:${{ env.VERSION }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+
+      # ── DEPLOY ────────────────────────────────────────────────────────────
+      - name: 🚀 Deploy to Cloud Run (Dev)
+        run: |
+          gcloud run deploy ${{ vars.SERVICE_NAME }}-dev \
+            --image ${{ vars.REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.REPO_NAME }}/${{ vars.REPO_NAME }}:${{ env.VERSION }} \
+            --region ${{ vars.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --service-account ${{ secrets.CLOUDRUN_SA }} \
+            --revision-suffix "${{ env.SAFE_VERSION }}"
+
+      # ── GIT TAG ───────────────────────────────────────────────────────────
+      - name: 🏷️ Create DEV Git tag
+        run: |
+          set -e
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          if git rev-parse "${{ env.VERSION }}" >/dev/null 2>&1; then
+            echo "Tag already exists: ${{ env.VERSION }}"
+            exit 0
+          fi
+          git tag "${{ env.VERSION }}"
+          git push origin "${{ env.VERSION }}"
+
+      # ── SUMMARY ───────────────────────────────────────────────────────────
+      - name: 📋 Summary
+        run: |
+          echo "### ✅ Frontend Dev Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ env.VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Service:** ${{ vars.SERVICE_NAME }}-dev" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ vars.REGION }}" >> $GITHUB_STEP_SUMMARY
