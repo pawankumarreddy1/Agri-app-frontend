@@ -325,7 +325,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: "20"
-          cache: npm
 
       # --------------------------------------------------------
       # INSTALL DEPENDENCIES
