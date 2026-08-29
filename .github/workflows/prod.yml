@@ -312,14 +312,14 @@ jobs:
             .
 
       - name: Scan image for vulnerabilities
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.image.outputs.image }}
           format: table
           exit-code: "1"
-          ignore-unfixed: true
+          ignore-unfixed: false
           vuln-type: "os,library"
-          severity: "CRITICAL,HIGH"
+          severity: "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
           scanners: vuln
 
       - name: Push image to Artifact Registry
@@ -367,6 +367,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Create version tag
@@ -400,3 +401,5 @@ jobs:
 
           git tag "$VERSION"
           git push origin "$VERSION"
+
+          echo "Production tag created: $VERSION"
