@@ -1,113 +1,638 @@
-name: 🚀 Deploy Frontend (production)
+# name: 🚀 Deploy Frontend (production)
+
+# on:
+#   push:
+#     branches:
+#       - main
+
+# permissions:
+#   contents: write
+
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+#     environment: main
+
+#     steps:
+#       # ---------------- CHECKOUT ----------------
+#       - name: 🧾 Checkout code
+#         uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
+
+#       # ---------------- AUTH ----------------
+#       - name: 🔐 Authenticate to Google Cloud
+#         uses: google-github-actions/auth@v2
+#         with:
+#           credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+#       - name: ☁️ Setup gcloud
+#         uses: google-github-actions/setup-gcloud@v2
+#         with:
+#           project_id: ${{ vars.GCP_PROJECT_ID }}
+
+#       # ---------------- VERSIONING ----------------
+#       - name: 🏷️ Generate production version
+#         run: |
+#           set -e
+
+#           git fetch --tags
+
+#           PREFIX="prod-v"
+
+#           LAST_TAG=$(git tag -l "${PREFIX}[0-9]*.[0-9]*.[0-9]*" | sort -V | tail -n 1)
+
+#           if [ -z "$LAST_TAG" ]; then
+#             VERSION="${PREFIX}1.0.0"
+#           else
+#             IFS='.' read -r MAJOR MINOR PATCH <<< "${LAST_TAG#${PREFIX}}"
+#             PATCH=$((PATCH + 1))
+#             VERSION="${PREFIX}${MAJOR}.${MINOR}.${PATCH}"
+#           fi
+
+#           SHORT_SHA=$(git rev-parse --short HEAD)
+#           SAFE_VERSION="$(echo "${VERSION#${PREFIX}}" | tr '.' '-')-${SHORT_SHA}"
+
+#           echo "VERSION=$VERSION" >> $GITHUB_ENV
+#           echo "SAFE_VERSION=$SAFE_VERSION" >> $GITHUB_ENV
+
+#           echo "VERSION=$VERSION"
+#           echo "SAFE_VERSION=$SAFE_VERSION"
+
+#       # ---------------- CONFIGURE DOCKER ----------------
+#       - name: � Configure Docker
+#         run: |
+#           gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev --quiet
+
+#       # ---------------- BUILD & PUSH IMAGE ----------------
+#       - name: 🏗️ Build & Push Docker Image
+#         run: |
+#           set -e
+
+#           IMAGE="${{ vars.REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.REPO_NAME }}/frontend:${VERSION}"
+
+#           echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+#           docker build \
+#             --build-arg NEXT_PUBLIC_API_URL="${{ secrets.NEXT_PUBLIC_API_URL }}" \
+#             --build-arg NEXT_PUBLIC_FIREBASE_API_KEY="${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}" \
+#             --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}" \
+#             --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID="${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}" \
+#             --build-arg NEXT_PUBLIC_FIREBASE_APP_ID="${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}" \
+#             -t "$IMAGE" .
+#           docker push "$IMAGE"
+
+#       # ---------------- DEPLOY ----------------
+#       - name: 🚀 Deploy to Cloud Run
+#         run: |
+#           set -e
+
+#           gcloud run deploy ${{ vars.SERVICE_NAME }} \
+#             --image "$IMAGE" \
+#             --region "${{ vars.REGION }}" \
+#             --platform managed \
+#             --allow-unauthenticated \
+#             --service-account "${{ secrets.CLOUDRUN_SA }}" \
+#             --revision-suffix "${SAFE_VERSION}" \
+#             --set-env-vars="NODE_ENV=production"
+
+#       # ---------------- CREATE TAG ----------------
+#       - name: 🏷️ Create Git Tag
+#         run: |
+#           set -e
+
+#           git config user.name "github-actions"
+#           git config user.email "github-actions@github.com"
+
+#           if git rev-parse "$VERSION" >/dev/null 2>&1; then
+#             echo "Tag already exists: $VERSION"
+#             exit 0
+#           fi
+
+#           git tag "$VERSION"
+#           git push origin "$VERSION"
+
+
+# name: Deploy to Prod
+
+# on:
+#   push:
+#     branches:
+#       - main
+
+# env:
+#   REGISTRY: ${{ secrets.REGISTRY }}
+#   IMAGE_TAG: ${{ github.sha }}
+#   NAMESPACE: agri-prod
+
+# jobs:
+#   build:
+#     name: Build and Push Images
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
+
+#       - name: Login to Container Registry
+#         uses: docker/login-action@v3
+#         with:
+#           registry: ${{ secrets.REGISTRY }}
+#           username: ${{ secrets.REGISTRY_USER }}
+#           password: ${{ secrets.REGISTRY_PASSWORD }}
+
+#       - name: Build and push backend
+#         uses: docker/build-push-action@v5
+#         with:
+#           context: ./backend
+#           push: true
+#           tags: ${{ env.REGISTRY }}/agri-backend:${{ env.IMAGE_TAG }},${{ env.REGISTRY }}/agri-backend:prod-latest
+
+#       - name: Build and push frontend
+#         uses: docker/build-push-action@v5
+#         with:
+#           context: ./frontend
+#           push: true
+#           build-args: |
+#             NEXT_PUBLIC_API_URL=${{ secrets.PROD_API_URL }}
+#           tags: ${{ env.REGISTRY }}/agri-frontend:${{ env.IMAGE_TAG }},${{ env.REGISTRY }}/agri-frontend:prod-latest
+
+#   deploy:
+#     name: Deploy to Prod (Approval Required)
+#     runs-on: ubuntu-latest
+#     needs: build
+#     environment: production
+
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
+
+#       - name: Set up kubectl
+#         uses: azure/setup-kubectl@v3
+
+#       - name: Configure kubeconfig
+#         run: echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
+
+#       - name: Apply secrets
+#         run: |
+#           kubectl create secret generic agri-secrets \
+#             --from-literal=MONGODB_URI="${{ secrets.MONGODB_URI }}" \
+#             --from-literal=FRONTEND_URL="${{ secrets.PROD_FRONTEND_URL }}" \
+#             --namespace=${{ env.NAMESPACE }} \
+#             --dry-run=client -o yaml | kubectl apply -f -
+
+#       - name: Deploy backend
+#         run: |
+#           sed -e "s|REGISTRY|${{ env.REGISTRY }}|g" \
+#               -e "s|IMAGE_TAG|${{ env.IMAGE_TAG }}|g" \
+#               k8s/backend/deployment.yaml | kubectl apply -f - -n ${{ env.NAMESPACE }}
+#           kubectl apply -f k8s/backend/service.yaml -n ${{ env.NAMESPACE }}
+
+#       - name: Deploy frontend
+#         run: |
+#           sed -e "s|REGISTRY|${{ env.REGISTRY }}|g" \
+#               -e "s|IMAGE_TAG|${{ env.IMAGE_TAG }}|g" \
+#               k8s/frontend/deployment.yaml | kubectl apply -f - -n ${{ env.NAMESPACE }}
+#           kubectl apply -f k8s/frontend/service.yaml -n ${{ env.NAMESPACE }}
+
+#       - name: Apply ingress
+#         run: kubectl apply -f k8s/ingress.yaml -n ${{ env.NAMESPACE }}
+
+#       - name: Wait for rollout
+#         run: |
+#           kubectl rollout status deployment/agri-backend -n ${{ env.NAMESPACE }} --timeout=180s
+#           kubectl rollout status deployment/agri-frontend -n ${{ env.NAMESPACE }} --timeout=180s
+
+#       - name: Health check
+#         run: |
+#           INGRESS_IP=$(kubectl get ingress agri-ingress -n ${{ env.NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+#           curl --fail --retry 5 --retry-delay 10 "http://$INGRESS_IP/api/health"
+
+#       - name: Summary
+#         run: |
+#           echo "### Prod Deployment Complete" >> $GITHUB_STEP_SUMMARY
+#           echo "Image tag: ${{ env.IMAGE_TAG }}" >> $GITHUB_STEP_SUMMARY
+#           kubectl get ingress -n ${{ env.NAMESPACE }} >> $GITHUB_STEP_SUMMARY
+
+
+name: 🚀 Deploy Frontend (Production)
 
 on:
   push:
     branches:
       - main
 
+  workflow_dispatch:
+
+# Prevent multiple production deployments at the same time
+concurrency:
+  group: frontend-production
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
 jobs:
-  deploy:
+
+  # ============================================================
+  # 1. VALIDATION + SECURITY CHECKS
+  # ============================================================
+  security:
+    name: 🔐 Validation & Security Scan
     runs-on: ubuntu-latest
     environment: main
 
     steps:
-      # ---------------- CHECKOUT ----------------
+
+      # --------------------------------------------------------
+      # CHECKOUT
+      # --------------------------------------------------------
       - name: 🧾 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      # ---------------- AUTH ----------------
+      # --------------------------------------------------------
+      # POKA-YOKE: REQUIRED FILE CHECK
+      # --------------------------------------------------------
+      - name: 🛡️ Validate required files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Checking required project files..."
+
+          REQUIRED_FILES=(
+            "Dockerfile"
+            "package.json"
+            "package-lock.json"
+          )
+
+          for FILE in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$FILE" ]; then
+              echo "❌ Missing required file: $FILE"
+              exit 1
+            fi
+
+            echo "✅ Found: $FILE"
+          done
+
+          echo "✅ Required file validation passed"
+
+      # --------------------------------------------------------
+      # POKA-YOKE: DOCKERFILE CHECK
+      # --------------------------------------------------------
+      - name: 🐳 Validate Dockerfile
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          grep -q "^FROM " Dockerfile || {
+            echo "❌ Dockerfile does not contain FROM"
+            exit 1
+          }
+
+          echo "✅ Dockerfile contains FROM"
+
+          if grep -q "EXPOSE 8080" Dockerfile; then
+            echo "✅ Dockerfile exposes port 8080"
+          else
+            echo "⚠️ WARNING: Dockerfile does not expose port 8080"
+          fi
+
+      # --------------------------------------------------------
+      # GITLEAKS
+      # --------------------------------------------------------
+      - name: 🔑 Scan repository for secrets
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+      # --------------------------------------------------------
+      # HADOLINT
+      # --------------------------------------------------------
+      - name: 🐳 Scan Dockerfile with Hadolint
+        uses: hadolint/hadolint-action@v3.4.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: error
+
+      # --------------------------------------------------------
+      # NODE.JS
+      # --------------------------------------------------------
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+
+      # --------------------------------------------------------
+      # INSTALL DEPENDENCIES
+      # --------------------------------------------------------
+      - name: 📦 Install dependencies
+        run: |
+          set -euo pipefail
+
+          npm ci
+
+      # --------------------------------------------------------
+      # NPM SECURITY SCAN
+      # --------------------------------------------------------
+      - name: 🔎 Scan npm dependencies
+        run: |
+          set -euo pipefail
+
+          npm audit --audit-level=high
+
+      # --------------------------------------------------------
+      # FRONTEND BUILD TEST
+      # --------------------------------------------------------
+      - name: 🏗️ Build frontend
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+        run: |
+          set -euo pipefail
+
+          npm run build
+
+          echo "✅ Frontend build successful"
+
+
+  # ============================================================
+  # 2. BUILD + SCAN + PUSH DOCKER IMAGE
+  # ============================================================
+  build:
+    name: 🐳 Build & Scan Docker Image
+    runs-on: ubuntu-latest
+    environment: main
+
+    needs:
+      - security
+
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+
+    steps:
+
+      # --------------------------------------------------------
+      # CHECKOUT
+      # --------------------------------------------------------
+      - name: 🧾 Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # --------------------------------------------------------
+      # AUTHENTICATE TO GOOGLE CLOUD
+      # --------------------------------------------------------
       - name: 🔐 Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: '${{ secrets.GCP_SA_KEY }}'
 
+      # --------------------------------------------------------
+      # SETUP GCLOUD
+      # --------------------------------------------------------
       - name: ☁️ Setup gcloud
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
 
-      # ---------------- VERSIONING ----------------
-      - name: 🏷️ Generate production version
+      # --------------------------------------------------------
+      # DOCKER AUTH
+      # --------------------------------------------------------
+      - name: 🔐 Configure Docker
         run: |
-          set -e
+          set -euo pipefail
 
-          git fetch --tags
+          gcloud auth configure-docker \
+            "${{ vars.REGION }}-docker.pkg.dev" \
+            --quiet
 
-          PREFIX="prod-v"
-
-          LAST_TAG=$(git tag -l "${PREFIX}[0-9]*.[0-9]*.[0-9]*" | sort -V | tail -n 1)
-
-          if [ -z "$LAST_TAG" ]; then
-            VERSION="${PREFIX}1.0.0"
-          else
-            IFS='.' read -r MAJOR MINOR PATCH <<< "${LAST_TAG#${PREFIX}}"
-            PATCH=$((PATCH + 1))
-            VERSION="${PREFIX}${MAJOR}.${MINOR}.${PATCH}"
-          fi
+      # --------------------------------------------------------
+      # PREPARE IMAGE
+      # --------------------------------------------------------
+      - name: 🏷️ Prepare Docker image name
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
 
           SHORT_SHA=$(git rev-parse --short HEAD)
-          SAFE_VERSION="$(echo "${VERSION#${PREFIX}}" | tr '.' '-')-${SHORT_SHA}"
 
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "SAFE_VERSION=$SAFE_VERSION" >> $GITHUB_ENV
+          IMAGE="${{ vars.REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.REPO_NAME }}/frontend:${SHORT_SHA}"
 
-          echo "VERSION=$VERSION"
-          echo "SAFE_VERSION=$SAFE_VERSION"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
-      # ---------------- CONFIGURE DOCKER ----------------
-      - name: � Configure Docker
+          echo "Docker Image:"
+          echo "$IMAGE"
+
+      # --------------------------------------------------------
+      # BUILD IMAGE
+      # --------------------------------------------------------
+      - name: 🏗️ Build Docker image
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
         run: |
-          gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev --quiet
-
-      # ---------------- BUILD & PUSH IMAGE ----------------
-      - name: 🏗️ Build & Push Docker Image
-        run: |
-          set -e
-
-          IMAGE="${{ vars.REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.REPO_NAME }}/frontend:${VERSION}"
-
-          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+          set -euo pipefail
 
           docker build \
-            --build-arg NEXT_PUBLIC_API_URL="${{ secrets.NEXT_PUBLIC_API_URL }}" \
-            --build-arg NEXT_PUBLIC_FIREBASE_API_KEY="${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}" \
-            --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}" \
-            --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID="${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}" \
-            --build-arg NEXT_PUBLIC_FIREBASE_APP_ID="${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}" \
-            -t "$IMAGE" .
+            --pull \
+            --build-arg "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_PROJECT_ID=$NEXT_PUBLIC_FIREBASE_PROJECT_ID" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_APP_ID=$NEXT_PUBLIC_FIREBASE_APP_ID" \
+            -t "$IMAGE" \
+            .
+
+          echo "✅ Docker image built successfully"
+
+      # --------------------------------------------------------
+      # TRIVY
+      # --------------------------------------------------------
+      - name: 🔎 Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ${{ steps.image.outputs.image }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      # --------------------------------------------------------
+      # PUSH IMAGE
+      # --------------------------------------------------------
+      - name: 📦 Push Docker image
+        run: |
+          set -euo pipefail
+
           docker push "$IMAGE"
 
-      # ---------------- DEPLOY ----------------
-      - name: 🚀 Deploy to Cloud Run
-        run: |
-          set -e
+          echo "✅ Docker image pushed successfully"
 
-          gcloud run deploy ${{ vars.SERVICE_NAME }} \
+
+  # ============================================================
+  # 3. DEPLOY TO CLOUD RUN
+  # ============================================================
+  deploy:
+    name: 🚀 Deploy Frontend to Cloud Run
+    runs-on: ubuntu-latest
+    environment: main
+
+    needs:
+      - build
+
+    steps:
+
+      # --------------------------------------------------------
+      # AUTHENTICATE
+      # --------------------------------------------------------
+      - name: 🔐 Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      # --------------------------------------------------------
+      # SETUP GCLOUD
+      # --------------------------------------------------------
+      - name: ☁️ Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      # --------------------------------------------------------
+      # DEPLOY CLOUD RUN
+      # --------------------------------------------------------
+      - name: 🚀 Deploy to Cloud Run
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+        run: |
+          set -euo pipefail
+
+          echo "Deploying image:"
+          echo "$IMAGE"
+
+          gcloud run deploy "${{ vars.SERVICE_NAME }}" \
             --image "$IMAGE" \
             --region "${{ vars.REGION }}" \
             --platform managed \
             --allow-unauthenticated \
             --service-account "${{ secrets.CLOUDRUN_SA }}" \
-            --revision-suffix "${SAFE_VERSION}" \
             --set-env-vars="NODE_ENV=production"
 
-      # ---------------- CREATE TAG ----------------
-      - name: 🏷️ Create Git Tag
+          echo "✅ Cloud Run deployment completed"
+
+      # --------------------------------------------------------
+      # HEALTH CHECK
+      # --------------------------------------------------------
+      - name: ❤️ Cloud Run health check
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
+
+          URL=$(
+            gcloud run services describe "${{ vars.SERVICE_NAME }}" \
+              --region "${{ vars.REGION }}" \
+              --format='value(status.url)'
+          )
+
+          echo "Cloud Run URL:"
+          echo "$URL"
+
+          echo "Checking application health..."
+
+          for i in {1..12}; do
+
+            HTTP_CODE=$(curl \
+              -L \
+              -s \
+              -o /dev/null \
+              -w "%{http_code}" \
+              --max-time 20 \
+              "$URL" || true)
+
+            echo "Attempt $i → HTTP $HTTP_CODE"
+
+            if [[ "$HTTP_CODE" =~ ^2[0-9][0-9]$ ]]; then
+              echo "✅ Cloud Run health check passed"
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo "❌ Cloud Run health check failed"
+          exit 1
+
+
+  # ============================================================
+  # 4. CREATE PRODUCTION TAG
+  # ============================================================
+  tag:
+    name: 🏷️ Create Git Tag
+    runs-on: ubuntu-latest
+    environment: main
+
+    needs:
+      - deploy
+
+    steps:
+
+      - name: 🧾 Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: 🏷️ Create Git Tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --tags --force
+
+          PREFIX="prod-v"
+
+          LAST_TAG=$(
+            git tag -l "${PREFIX}[0-9]*.[0-9]*.[0-9]*" |
+            sort -V |
+            tail -n 1
+          )
+
+          if [ -z "$LAST_TAG" ]; then
+            VERSION="${PREFIX}1.0.0"
+          else
+            CURRENT_VERSION="${LAST_TAG#${PREFIX}}"
+
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+            PATCH=$((PATCH + 1))
+
+            VERSION="${PREFIX}${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          echo "Creating tag: $VERSION"
 
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          if git rev-parse "$VERSION" >/dev/null 2>&1; then
-            echo "Tag already exists: $VERSION"
+          if git tag -l "$VERSION" | grep -qx "$VERSION"; then
+            echo "⚠️ Tag already exists: $VERSION"
             exit 0
           fi
 
           git tag "$VERSION"
           git push origin "$VERSION"
+
+          echo "✅ Production tag created: $VERSION"
