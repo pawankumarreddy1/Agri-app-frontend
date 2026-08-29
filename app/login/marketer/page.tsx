@@ -150,8 +150,8 @@ export default function MarketerLoginPage() {
     mode === 'forgot'
       ? 'Enter your registered phone and choose a new password.'
       : mode === 'login'
-        ? 'For hostels, PGs, big markets & wholesale kitchens.'
-        : 'Tell us what you run so farmers know who is bidding.'
+        ? 'Hostels, PGs & markets — AgriConnect delivers from Hyderabad.'
+        : 'Tell us what you run. We distribute from our Hyderabad office to your kitchen.'
 
   return (
     <AuthShell role="marketer" title={title} subtitle={subtitle}>
@@ -199,13 +199,13 @@ export default function MarketerLoginPage() {
                 placeholder="e.g. Green Valley Hostel, City Mandi Stall 12"
               />
             </AuthField>
-            <AuthField label="Delivery / kitchen address">
+            <AuthField label="Hostel / kitchen address (we deliver here from Hyderabad)">
               <input
                 type="text"
                 value={address}
                 onChange={e => setAddress(e.target.value)}
                 className={authInputClass}
-                placeholder="Where bulk orders should be delivered"
+                placeholder="Where AgriConnect should deliver from the hub"
               />
             </AuthField>
           </>

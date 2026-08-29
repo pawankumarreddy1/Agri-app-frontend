@@ -80,7 +80,7 @@ export default function Home() {
                 Bulk farm orders for hostels, PGs & big markets.
               </h1>
               <p className="mt-5 text-base sm:text-lg text-white/75 max-w-md leading-relaxed ac-animate-up-delay">
-                Farmers list produce by the sack, quintal, or ton. Hostels, PGs, messes, and wholesale markets bid for bulk supply with clear delivery dates.
+                Farmers deliver produce to our Hyderabad office. We sell and distribute to ordered hostels, collect payment, take commission, and settle farmers.
               </p>
               <div className="mt-9 flex flex-wrap gap-3 ac-animate-up-delay-2">
                 <a
@@ -102,7 +102,7 @@ export default function Home() {
 
         <div className="relative z-10 px-5 sm:px-8 pb-6">
           <div className="max-w-7xl mx-auto flex items-end justify-between gap-4 text-white/50 text-xs sm:text-sm">
-            <span>Field → bulk kitchens & markets · India</span>
+            <span>Farm → Hyderabad hub → hostels & markets</span>
             <a href="#how" className="hover:text-white/80 transition-colors hidden sm:inline">
               Scroll for process
             </a>
@@ -120,27 +120,27 @@ export default function Home() {
           }}
         />
         <div className="max-w-5xl mx-auto">
-          <p className="font-display text-sm text-leaf tracking-wide">How bulk supply works</p>
+          <p className="font-display text-sm text-leaf tracking-wide">How the Hyderabad hub works</p>
           <h2 className="font-display mt-2 text-3xl sm:text-4xl md:text-5xl font-semibold text-ink tracking-tight max-w-xl leading-[1.1]">
-            From farm volume to institutional kitchen.
+            One office. Many hostels. Fair farmer settlement.
           </h2>
 
           <ol className="mt-14 grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8">
             {[
               {
                 n: '01',
-                title: 'Farmers list bulk lots',
-                body: 'Quantity, grade, unit (kg / quintal / ton / bags), starting bid, and delivery date when produce is ready.',
+                title: 'Farmers deliver to Hyderabad',
+                body: 'Growers list a bulk lot at a fixed rate, then drop the produce at AgriConnect’s Hyderabad office on the scheduled date.',
               },
               {
                 n: '02',
-                title: 'Hostels & markets bid',
-                body: 'Bulk buyers compete for supply. Highest valid bid wins when the window closes—before delivery day.',
+                title: 'We distribute to hostels',
+                body: 'Hostels, PGs and markets order at the farmer’s rate. AgriConnect sells and delivers those lots from the Hyderabad hub.',
               },
               {
                 n: '03',
-                title: 'Confirm & receive volume',
-                body: 'Winner pays advance, kitchen or market receives the full lot on the agreed date, admin settles fairly.',
+                title: 'Collect, commission, settle',
+                body: 'We collect payment from hostels, keep our commission, and settle the farmer for the rest.',
               },
             ].map((step) => (
               <li key={step.n} className="relative">
@@ -163,30 +163,30 @@ export default function Home() {
             Everything you need for bulk farm trade.
           </h2>
           <p className="mt-4 text-ink-muted max-w-xl text-lg leading-relaxed">
-            Delivery-date bidding, volume lots, advance payment, and fair close—built for farmers and institutional buyers.
+            Farmers drop lots at our Hyderabad office. We distribute to hostels, collect money, take commission, and settle growers.
           </p>
 
           <div className="mt-14 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-0">
             {[
               {
                 title: 'Bulk crop listings',
-                body: 'Farmers post quantity, unit (kg / quintal / ton / bags), grade, photos, starting bid, and harvest date as full volume lots.',
+                body: 'Farmers post quantity, unit (kg / quintal / ton / bags), grade, photos, a fixed rate, and harvest date as full volume lots.',
               },
               {
-                title: 'Mandatory delivery date',
-                body: 'Every listing requires a delivery day with a minimum advance window—so hostels and markets can plan kitchens and logistics.',
+                title: 'Hyderabad collection hub',
+                body: 'Farmers deliver every sold lot to AgriConnect’s Hyderabad office—not hostel-by-hostel. One drop-off, we handle the rest.',
               },
               {
-                title: 'Competitive bidding ladder',
-                body: 'Buyers raise the price in transparent steps. Each new bid must beat the current high by the minimum increment (default ₹1).',
+                title: 'Farmer-fixed rate',
+                body: 'The grower sets the selling price per unit. Market teams buy at that rate — no bid wars, no last-second ladder tricks.',
               },
               {
-                title: 'Live min next bid',
-                body: 'Everyone sees the next valid price. Concurrent bids are checked safely on the server so collisions cannot cheat the ladder.',
+                title: 'Distribute to ordered hostels',
+                body: 'After lots land at the hub, AgriConnect sells and delivers to the hostels, PGs, and markets that ordered.',
               },
               {
                 title: 'Auto-close before delivery',
-                body: 'Bidding ends a set number of days before delivery (configurable), or admin closes early when the kitchen needs certainty.',
+                body: 'Listings stop being available a set number of days before delivery, or admin can close a lot early.',
               },
               {
                 title: 'Farmer GPS location',
@@ -194,31 +194,31 @@ export default function Home() {
               },
               {
                 title: 'Hostel, PG & market profiles',
-                body: 'Bulk buyers register by type—hostel, PG, big market, wholesale, mess, or caterer—with business name and delivery address.',
+                body: 'Bulk buyers register by type—hostel, PG, big market, wholesale, mess, or caterer—with business name and address we deliver to from Hyderabad.',
               },
               {
                 title: 'Filter by delivery window',
                 body: 'Buyers search lots by place, date range, and status to stock next week’s mess or mandi—not random retail pickups.',
               },
               {
-                title: 'Winner + advance payment',
-                body: 'Admin selects the winner; buyer confirms with advance (Razorpay when configured). Sale totals track quantity × winning bid.',
+                title: 'Buy + advance payment',
+                body: 'Buyer confirms at the farmer rate and pays AgriConnect. We collect the rest, take commission, then settle the farmer.',
               },
               {
                 title: 'Delivery inspection & mismatch',
                 body: 'After delivery, accept the lot or report quality/quantity mismatch. Admin can price-adjust, approve rejection, or dismiss—no fake “returns” on accepted goods.',
               },
               {
-                title: 'Farmer sales & payouts',
-                body: 'Farmers see won lots, commission, and payout status. Admin marks farmer paid after settlement.',
+                title: 'Collect, commission, settle',
+                body: 'We collect payment from hostels, keep commission, and settle the farmer. Growers see payout status after each lot.',
               },
               {
                 title: 'Admin verification & audit',
-                body: 'See who posted and who bid—name, phone, buyer type, warnings, registration date—to confirm real vs fake accounts. Full audit log and analytics.',
+                body: 'See who posted and who bought—name, phone, buyer type, warnings, registration date—to confirm real vs fake accounts. Full audit log and analytics.',
               },
               {
                 title: 'In-app notifications',
-                body: 'New bids, winner selection, advance requests, and delivery alerts keep farmers and bulk buyers in the loop.',
+                body: 'New purchases, advance requests, and delivery alerts keep farmers and bulk buyers in the loop.',
               },
               {
                 title: 'Secure accounts',
@@ -263,11 +263,11 @@ export default function Home() {
               },
               {
                 title: 'College & working mens hostels',
-                body: 'Plan large-volume kitchen stocks ahead. Bid once, stock for the week—less market runaround.',
+                body: 'Plan large-volume kitchen stocks ahead. Buy the lot at the listed rate—less market runaround.',
               },
               {
                 title: 'Big markets & wholesale',
-                body: 'Mandi traders and large retailers lock farm-direct lots before peak demand, with transparent bidding.',
+                body: 'Mandi traders and large retailers lock farm-direct lots at a published rate before peak demand.',
               },
               {
                 title: 'Caterers & institutional mess',
@@ -289,22 +289,22 @@ export default function Home() {
           <div className="md:col-span-5">
             <p className="font-display text-sm text-leaf tracking-wide">Why AgriConnect</p>
             <h2 className="font-display mt-3 text-3xl sm:text-4xl font-semibold leading-tight text-ink">
-              Bulk deals with delivery dates—not last-minute retail chaos.
+              Hyderabad hub between the farm and the mess.
             </h2>
           </div>
           <ul className="md:col-span-7 space-y-8">
             {[
               {
-                title: 'Volume-first listings',
-                body: 'Farmers post real bulk quantity. You bid for the full lot—suited to hostel messes and wholesale floors.',
+                title: 'One drop-off for farmers',
+                body: 'Bring the sold lot to our Hyderabad office. You do not run hostel-to-hostel deliveries.',
               },
               {
-                title: 'Plan around delivery day',
-                body: 'Know when the crop lands so cooks, vans, and cold storage can prepare—not scramble same-day.',
+                title: 'We supply the kitchens',
+                body: 'AgriConnect distributes from the hub to every hostel, PG, or market that ordered.',
               },
               {
-                title: 'Fair close & settlements',
-                body: 'Admin finalizes winners, advance confirms the purchase, and payouts stay trackable for both sides.',
+                title: 'Commission then farmer settlement',
+                body: 'We collect from buyers, keep our commission, and pay the farmer the rest.',
               },
             ].map((item) => (
               <li key={item.title} className="border-t border-[var(--line)] pt-6">
@@ -321,10 +321,10 @@ export default function Home() {
         <div className="max-w-5xl mx-auto">
           <p className="font-display text-sm text-leaf tracking-wide">Get started</p>
           <h2 className="font-display mt-2 text-3xl sm:text-4xl md:text-5xl font-semibold text-ink tracking-tight">
-            Farmers supply. Bulk buyers bid.
+            Farmers set the rate. We run Hyderabad logistics.
           </h2>
           <p className="mt-4 text-ink-muted max-w-lg text-lg">
-            Hostels, PGs, and big-market buyers enter as bulk buyers. Growers list production volume.
+            Growers drop produce at our office. Hostels order from AgriConnect. We collect, take commission, and settle farmers.
           </p>
 
           <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
@@ -336,7 +336,7 @@ export default function Home() {
                 <p className="text-white/70 text-sm font-medium">For growers</p>
                 <h3 className="font-display text-3xl font-semibold mt-2">Farmer</h3>
                 <p className="mt-3 text-white/80 text-sm leading-relaxed">
-                  List bulk harvests for hostel messes and wholesale buyers. Track bids and payouts.
+                  List at a fixed rate, deliver to our Hyderabad office, and get settled after commission.
                 </p>
               </div>
               <span className="inline-flex items-center gap-2 text-sm font-semibold">
@@ -353,7 +353,7 @@ export default function Home() {
                 <p className="text-white/60 text-sm font-medium">Hostels · PGs · Markets</p>
                 <h3 className="font-display text-3xl font-semibold mt-2">Bulk buyer</h3>
                 <p className="mt-3 text-white/75 text-sm leading-relaxed">
-                  Bid on volume lots by delivery date. Win supply for kitchens and trading floors.
+                  Order lots at the farmer’s rate. AgriConnect delivers from the Hyderabad hub to your hostel or market.
                 </p>
               </div>
               <span className="inline-flex items-center gap-2 text-sm font-semibold text-gold-soft">
@@ -370,7 +370,7 @@ export default function Home() {
                 <p className="text-ink-muted text-sm font-medium">Operations</p>
                 <h3 className="font-display text-3xl font-semibold mt-2">Admin</h3>
                 <p className="mt-3 text-ink-muted text-sm leading-relaxed">
-                  Verify farmers & bulk buyers, close bidding, settle advance and deliveries.
+                  Receive at Hyderabad hub, distribute to hostels, collect payment, take commission, settle farmers.
                 </p>
               </div>
               <span className="inline-flex items-center gap-2 text-sm font-semibold text-leaf">
@@ -391,7 +391,7 @@ export default function Home() {
               Onboarding a hostel chain or wholesale desk?
             </h2>
             <p className="mt-4 text-ink-muted max-w-sm">
-              We help farmers and bulk buyers (hostels, PGs, markets) get set up for recurring volume orders.
+              Farmers deliver to our Hyderabad office. We supply hostels and markets, then settle growers after commission.
             </p>
           </div>
           <div className="flex flex-col gap-4 text-[15px]">

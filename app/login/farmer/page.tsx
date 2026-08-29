@@ -129,8 +129,8 @@ export default function FarmerLoginPage() {
     mode === 'forgot'
       ? 'Enter your registered phone and choose a new password.'
       : mode === 'login'
-        ? 'Phone and password to open your dashboard.'
-        : 'Create an account with phone and password.'
+        ? 'List lots, deliver to our Hyderabad office, get settled after commission.'
+        : 'Create an account with phone and password. You drop produce at our Hyderabad hub.'
 
   return (
     <AuthShell role="farmer" title={title} subtitle={subtitle}>

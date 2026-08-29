@@ -10,9 +10,7 @@ interface Product {
   description: string
   rate?: string
   startingBid?: number
-  currentHighestBid?: number | null
-  minNextBid?: number
-  bidCount?: number
+  unitPrice?: number
   photos: string[]
   location: string
   latitude?: number
@@ -20,6 +18,8 @@ interface Product {
   farmerId: string
   mobile: string
   quantity?: number
+  originalQuantity?: number
+  remainingQuantity?: number
   unit?: string
   grade?: string
   harvestDate?: string
@@ -29,6 +29,8 @@ interface Product {
   soldTo?: string
   soldAmount?: number
   soldBidAmount?: number
+  hubName?: string
+  hubAddress?: string
   commission?: number
   farmerPayout?: number
   farmerPayoutStatus?: string
@@ -57,10 +59,16 @@ export default function FarmersPage() {
   const [sales, setSales] = useState<Product[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [showNotifs, setShowNotifs] = useState(false)
-  const [config, setConfig] = useState({ minAdvanceDays: 7, bidIncrement: 1 })
+  const [config, setConfig] = useState({
+    minAdvanceDays: 7,
+    hubName: 'AgriConnect Hyderabad Hub',
+    hubAddress: 'AgriConnect Collection Office, Hyderabad, Telangana',
+    hubCity: 'Hyderabad',
+    hubPhone: '',
+  })
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [startingBid, setStartingBid] = useState('')
+  const [rate, setRate] = useState('')
   const [deliveryDate, setDeliveryDate] = useState('')
   const [location, setLocation] = useState('')
   const [latitude, setLatitude] = useState<number | null>(null)
@@ -152,7 +160,13 @@ export default function FarmersPage() {
       setProducts(Array.isArray(p) ? p : [])
       setSales(Array.isArray(s) ? s : [])
       setNotifications(Array.isArray(n) ? n : [])
-      if (c) setConfig({ minAdvanceDays: c.minAdvanceDays || 7, bidIncrement: c.bidIncrement || 1 })
+      if (c) setConfig({
+        minAdvanceDays: c.minAdvanceDays || 7,
+        hubName: c.hubName || 'AgriConnect Hyderabad Hub',
+        hubAddress: c.hubAddress || 'AgriConnect Collection Office, Hyderabad, Telangana',
+        hubCity: c.hubCity || 'Hyderabad',
+        hubPhone: c.hubPhone || '',
+      })
     } catch (err: any) {
       if (err?.status === 401) { clearSession(); router.push('/login/farmer') }
     }
@@ -160,7 +174,7 @@ export default function FarmersPage() {
 
   const resetForm = () => {
     setEditingProduct(null)
-    setName(''); setDescription(''); setStartingBid(''); setDeliveryDate('')
+    setName(''); setDescription(''); setRate(''); setDeliveryDate('')
     setLocation(''); setLatitude(null); setLongitude(null); setLocationStatus('')
     setMobile(''); setQuantity(''); setUnit('kg')
     setGrade(''); setHarvestDate(''); setPhotos([])
@@ -176,7 +190,8 @@ export default function FarmersPage() {
     const formData = new FormData()
     formData.append('name', name)
     formData.append('description', description)
-    formData.append('startingBid', startingBid)
+    formData.append('startingBid', rate)
+    formData.append('rate', rate)
     formData.append('deliveryDate', deliveryDate)
     formData.append('location', location)
     if (latitude != null) formData.append('latitude', String(latitude))
@@ -195,7 +210,7 @@ export default function FarmersPage() {
       const res = await apiFetch(url, { method, body: formData })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setErrorMsg(data.error || 'Error saving crop'); return }
-      setSuccessMsg(editingProduct ? 'Crop updated!' : 'Crop published for bidding!')
+      setSuccessMsg(editingProduct ? 'Crop updated!' : 'Crop listed at your fixed rate!')
       resetForm()
       await fetchAll()
       setTimeout(() => setSuccessMsg(''), 3000)
@@ -207,13 +222,13 @@ export default function FarmersPage() {
   }
 
   const handleEdit = (product: Product) => {
-    if (product.bidCount && product.bidCount > 0) {
-      alert('After bids start you cannot change delivery date, quantity or starting bid.')
+    if (product.soldTo) {
+      alert('This lot is already purchased. Price and quantity cannot be changed.')
     }
     setEditingProduct(product)
     setName(product.name)
     setDescription(product.description || '')
-    setStartingBid(String(product.startingBid ?? product.rate ?? ''))
+    setRate(String(product.unitPrice ?? product.startingBid ?? product.rate ?? ''))
     setDeliveryDate(product.deliveryDate ? product.deliveryDate.slice(0, 10) : '')
     setLocation(product.location || '')
     setLatitude(product.latitude != null ? Number(product.latitude) : null)
@@ -243,7 +258,10 @@ export default function FarmersPage() {
   return (
     <div className="container mx-auto p-4 max-w-4xl">
       <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
-        <h1 className="text-3xl font-bold text-green-700">Farmer Dashboard</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-green-700">Farmer Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Deliver sold lots to AgriConnect Hyderabad — we distribute and settle you</p>
+        </div>
         <div className="flex gap-2 items-center">
           <div className="relative">
             <button onClick={() => setShowNotifs(v => !v)} className="relative bg-green-50 border border-green-200 text-green-800 px-3 py-2 rounded-lg text-sm">
@@ -283,7 +301,8 @@ export default function FarmersPage() {
           <form onSubmit={handleSubmit} className="mb-8 bg-green-50 border border-green-200 p-6 rounded-lg">
             <h2 className="text-xl font-semibold mb-2">{editingProduct ? 'Edit bulk crop lot' : 'Post bulk crop lot'}</h2>
             <p className="text-sm text-gray-600 mb-4">
-              List volume for hostels, PGs & wholesale markets. Delivery must be at least <strong>{config.minAdvanceDays} days</strong> out (earliest: {minDelivery}). Buyers bid in ₹{config.bidIncrement}+ steps from your starting bid per unit.
+              Set a <strong>fixed rate</strong>. When a hostel orders, you deliver the lot to <strong>{config.hubName}</strong> ({config.hubAddress}) — not to each hostel. AgriConnect distributes, collects payment, takes commission, and settles you.
+              Delivery date is the drop-off day at the Hyderabad office (at least <strong>{config.minAdvanceDays} days</strong> out; earliest: {minDelivery}).
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -291,11 +310,11 @@ export default function FarmersPage() {
                 <input className="w-full p-2 border rounded" value={name} onChange={e => setName(e.target.value)} required />
               </div>
               <div>
-                <label className="block mb-1 text-sm font-medium">Starting Bid (₹ / unit) *</label>
-                <input type="number" step="0.01" min="0.01" className="w-full p-2 border rounded" value={startingBid} onChange={e => setStartingBid(e.target.value)} required />
+                <label className="block mb-1 text-sm font-medium">Your rate (₹ / unit) *</label>
+                <input type="number" step="0.01" min="0.01" className="w-full p-2 border rounded" value={rate} onChange={e => setRate(e.target.value)} required placeholder="Fixed selling price" />
               </div>
               <div>
-                <label className="block mb-1 text-sm font-medium">Delivery Date *</label>
+                <label className="block mb-1 text-sm font-medium">Drop-off date at Hyderabad office *</label>
                 <input type="date" className="w-full p-2 border rounded" value={deliveryDate} min={minDelivery} onChange={e => setDeliveryDate(e.target.value)} required />
               </div>
               <div>
@@ -378,16 +397,23 @@ export default function FarmersPage() {
                   <h3 className="text-lg font-bold">{p.name}</h3>
                   <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded font-semibold">{p.status || '—'}</span>
                 </div>
-                <p className="text-sm font-medium text-green-800">Delivery: {fmtDate(p.deliveryDate)}</p>
-                <p className="text-sm">Qty: {p.quantity} {p.unit} · Grade: {p.grade || '—'}</p>
-                <p className="text-sm">Start ₹{p.startingBid ?? p.rate}/{p.unit} · High ₹{p.currentHighestBid ?? '—'} · Bids: {p.bidCount || 0}</p>
-                <p className="text-xs text-gray-500 mt-1">Closes: {fmtDate(p.biddingEndAt)}</p>
+                <p className="text-sm font-medium text-green-800">Hub drop-off: {fmtDate(p.deliveryDate)}</p>
+                <p className="text-sm">
+                  Available {p.remainingQuantity ?? p.quantity} {p.unit}
+                  {(p.originalQuantity ?? p.quantity) !== (p.remainingQuantity ?? p.quantity)
+                    ? ` · Posted ${p.originalQuantity ?? p.quantity} ${p.unit}`
+                    : ''}
+                  {' · '}Grade: {p.grade || '—'}
+                </p>
+                <p className="text-sm">Rate ₹{p.unitPrice ?? p.startingBid ?? p.rate}/{p.unit} · Farm: {p.location}</p>
+                <p className="text-xs text-green-800 mt-1">Deliver to {p.hubName || config.hubName} — {p.hubAddress || config.hubAddress}</p>
+                <p className="text-xs text-gray-500 mt-1">Available until {fmtDate(p.biddingEndAt)}</p>
                 <div className="flex flex-wrap gap-2 mt-3">
                   {(p.photos || []).map((photo, i) => (
                     <img key={i} src={`${API}${photo}`} alt="Crop" className="w-16 h-16 object-cover rounded" />
                   ))}
                 </div>
-                {['BIDDING_OPEN', 'SCHEDULED', 'DRAFT'].includes(p.status || '') && (
+                {['LISTED', 'BIDDING_OPEN', 'SCHEDULED', 'DRAFT'].includes(p.status || '') && (
                   <div className="flex gap-2 mt-3">
                     <button onClick={() => handleEdit(p)} className="bg-blue-500 text-white px-3 py-1 rounded text-sm">Edit</button>
                     <button onClick={() => handleDelete(p)} className="bg-red-100 text-red-700 px-3 py-1 rounded text-sm">Delete</button>
@@ -407,12 +433,12 @@ export default function FarmersPage() {
               <div className="flex justify-between">
                 <div>
                   <h3 className="font-bold text-lg">{s.name}</h3>
-                  <p className="text-sm text-gray-500">Sold to {s.soldTo} · Delivery {fmtDate(s.deliveryDate)}</p>
+                  <p className="text-sm text-gray-500">Sold via AgriConnect · Hub drop-off {fmtDate(s.deliveryDate)}</p>
                 </div>
                 <span className="font-bold text-green-700">₹{s.totalSaleValue ?? s.soldAmount}</span>
               </div>
-              <p className="text-sm mt-2">@ ₹{s.soldBidAmount}/{s.unit} · Payout ₹{s.farmerPayout} · {s.farmerPayoutStatus || 'pending'}</p>
-              <p className="text-xs text-gray-500 mt-1">Status: {s.status}</p>
+              <p className="text-sm mt-2">@ ₹{s.soldBidAmount}/{s.unit} · Your payout ₹{s.farmerPayout} after commission ₹{s.commission} · {s.farmerPayoutStatus || 'pending'}</p>
+              <p className="text-xs text-gray-500 mt-1">Drop at {s.hubName || config.hubName}. Status: {s.status}</p>
             </div>
           ))}
         </div>

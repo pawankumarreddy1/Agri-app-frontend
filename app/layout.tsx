@@ -17,7 +17,7 @@ const fraunces = Fraunces({
 export const metadata: Metadata = {
   title: 'AgriConnect — Bulk farm orders for hostels, PGs & markets',
   description:
-    'Farmers list bulk produce. Hostels, PGs, messes and wholesale markets bid by delivery date—transparent volume deals on AgriConnect.',
+    'Farmers list bulk produce at a fixed rate. Hostels, PGs, messes and wholesale markets buy by delivery date on AgriConnect.',
 }
 
 export default function RootLayout({
