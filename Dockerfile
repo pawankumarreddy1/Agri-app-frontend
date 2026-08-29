@@ -30,6 +30,12 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Patch OS packages and remove unused package managers from the runtime image
+RUN apk update && apk upgrade --no-cache \
+  && rm -rf /usr/local/lib/node_modules/npm \
+             /usr/local/lib/node_modules/corepack \
+             /opt/yarn-v1.22.22
+
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
