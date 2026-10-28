@@ -1,3 +1,4 @@
+
 name: 🚀 Deploy Frontend (Prod)
 
 on:
@@ -7,60 +8,83 @@ on:
 
 permissions:
   contents: write
-  id-token: write # Required for Workload Identity Federation
+  id-token: write
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production
+    environment: main
 
     steps:
-      # ── CHECKOUT ──────────────────────────────────────────────────────────
+      # ── CHECKOUT ──────────────────────────────────────────────────────
       - name: 🧾 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      # ── AUTH (WORKLOAD IDENTITY FEDERATION) ───────────────────────────────
-      - name: 🔐 Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+      # ── AUTHENTICATE USING WORKLOAD IDENTITY FEDERATION ────────────────
+      - name: 🔐 Authenticate to Google Cloud using WIF
+        uses: google-github-actions/auth@v3
         with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
+      # ── SETUP GCLOUD ──────────────────────────────────────────────────
       - name: ☁️ Setup gcloud
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
 
-      # ── VERSIONING (vX.Y.Z) ───────────────────────────────────────────────
-      - name: 🏷️ Generate PROD semantic version
+      # ── VERIFY AUTHENTICATION ─────────────────────────────────────────
+      - name: ✅ Verify Google Cloud authentication
+        shell: bash
         run: |
           set -e
-          git fetch --tags
+          gcloud auth list
+          gcloud config get-value project
+
+      # ── VERSIONING ────────────────────────────────────────────────────
+      - name: 🏷️ Generate PROD semantic version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --tags --force
+
           PREFIX="v"
+
           LAST_TAG=$(git tag -l "${PREFIX}[0-9]*.[0-9]*.[0-9]*" \
             | sort -V \
             | tail -n 1)
+
           if [ -z "$LAST_TAG" ]; then
             VERSION="${PREFIX}1.0.0"
           else
             IFS='.' read -r MAJOR MINOR PATCH <<< "${LAST_TAG#${PREFIX}}"
             PATCH=$((PATCH + 1))
-            VERSION="${PREFIX}$MAJOR.$MINOR.$PATCH"
+            VERSION="${PREFIX}${MAJOR}.${MINOR}.${PATCH}"
           fi
+
           SAFE_VERSION=$(echo "${VERSION#${PREFIX}}" | tr '.' '-')
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "SAFE_VERSION=$SAFE_VERSION" >> $GITHUB_ENV
-          echo "Prod Version: $VERSION"
-          echo "Revision suffix: $SAFE_VERSION"
 
-      # ── DOCKER AUTH ───────────────────────────────────────────────────────
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "SAFE_VERSION=$SAFE_VERSION" >> "$GITHUB_ENV"
+
+          echo "Production version: $VERSION"
+          echo "Cloud Run revision suffix: $SAFE_VERSION"
+
+      # ── DOCKER AUTH ───────────────────────────────────────────────────
       - name: 🔐 Configure Docker for Artifact Registry
+        shell: bash
         run: |
-          gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev --quiet
+          set -euo pipefail
 
-      # ── BUILD & PUSH ──────────────────────────────────────────────────────
+          gcloud auth configure-docker \
+            "${{ vars.REGION }}-docker.pkg.dev" \
+            --quiet
+
+      # ── BUILD & PUSH ──────────────────────────────────────────────────
       - name: 🐳 Build & Push Docker Image
         uses: docker/build-push-action@v6
         with:
@@ -71,34 +95,50 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
 
-      # ── DEPLOY ────────────────────────────────────────────────────────────
+      # ── DEPLOY TO CLOUD RUN ───────────────────────────────────────────
       - name: 🚀 Deploy to Cloud Run (Prod)
+        shell: bash
         run: |
-          gcloud run deploy ${{ vars.SERVICE_NAME }}-prod \
-            --image ${{ vars.REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.REPO_NAME }}/${{ vars.REPO_NAME }}:${{ env.VERSION }} \
-            --region ${{ vars.REGION }} \
+          set -euo pipefail
+
+          IMAGE="${{ vars.REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.REPO_NAME }}/${{ vars.REPO_NAME }}:${VERSION}"
+
+          gcloud run deploy "${{ vars.SERVICE_NAME }}-prod" \
+            --image "$IMAGE" \
+            --region "${{ vars.REGION }}" \
             --platform managed \
             --allow-unauthenticated \
-            --service-account ${{ secrets.WIF_SERVICE_ACCOUNT }} \
-            --revision-suffix "${{ env.SAFE_VERSION }}"
+            --service-account "${{ secrets.WIF_SERVICE_ACCOUNT }}" \
+            --revision-suffix "${SAFE_VERSION}"
 
-      # ── GIT TAG ───────────────────────────────────────────────────────────
+      # ── CREATE GIT TAG ────────────────────────────────────────────────
       - name: 🏷️ Create PROD Git tag
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
+
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          if git rev-parse "${{ env.VERSION }}" >/dev/null 2>&1; then
-            echo "Tag already exists: ${{ env.VERSION }}"
-            exit 0
-          fi
-          git tag "${{ env.VERSION }}"
-          git push origin "${{ env.VERSION }}"
 
-      # ── SUMMARY ───────────────────────────────────────────────────────────
+          if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+            echo "Tag already exists: ${VERSION}"
+            exit 1
+          fi
+
+          git tag "${VERSION}"
+          git push origin "${VERSION}"
+
+      # ── DEPLOYMENT SUMMARY ────────────────────────────────────────────
       - name: 📋 Summary
+        if: always()
+        shell: bash
         run: |
-          echo "### ✅ Frontend Prod Deployment Complete" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** ${{ env.VERSION }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Service:** ${{ vars.SERVICE_NAME }}-prod" >> $GITHUB_STEP_SUMMARY
-          echo "**Region:** ${{ vars.REGION }}" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### Frontend Production Deployment"
+            echo ""
+            echo "- **Status:** ${{ job.status }}"
+            echo "- **Version:** ${VERSION:-Not generated}"
+            echo "- **Service:** ${{ vars.SERVICE_NAME }}-prod"
+            echo "- **Region:** ${{ vars.REGION }}"
+            echo "- **Authentication:** Workload Identity Federation"
+          } >> "$GITHUB_STEP_SUMMAR
