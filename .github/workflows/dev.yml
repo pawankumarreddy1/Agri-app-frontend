@@ -1,4 +1,3 @@
-
 name: 🚀 Deploy Frontend (Prod)
 
 on:
@@ -9,6 +8,11 @@ on:
 permissions:
   contents: write
   id-token: write
+
+# Prevent concurrent production deployments and tag generation.
+concurrency:
+  group: agri-frontend-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -40,7 +44,7 @@ jobs:
       - name: ✅ Verify Google Cloud authentication
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           gcloud auth list
           gcloud config get-value project
 
@@ -53,7 +57,6 @@ jobs:
           git fetch --tags --force
 
           PREFIX="v"
-
           LAST_TAG=$(git tag -l "${PREFIX}[0-9]*.[0-9]*.[0-9]*" \
             | sort -V \
             | tail -n 1)
@@ -66,13 +69,20 @@ jobs:
             VERSION="${PREFIX}${MAJOR}.${MINOR}.${PATCH}"
           fi
 
-          SAFE_VERSION=$(echo "${VERSION#${PREFIX}}" | tr '.' '-')
+          # Ensure the version tag does not already exist.
+          if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+            echo "ERROR: Tag ${VERSION} already exists."
+            exit 1
+          fi
 
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "SAFE_VERSION=$SAFE_VERSION" >> "$GITHUB_ENV"
+          SAFE_VERSION="${VERSION#${PREFIX}}"
+          SAFE_VERSION="${SAFE_VERSION//./-}"
 
-          echo "Production version: $VERSION"
-          echo "Cloud Run revision suffix: $SAFE_VERSION"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "SAFE_VERSION=${SAFE_VERSION}" >> "$GITHUB_ENV"
+
+          echo "Production version: ${VERSION}"
+          echo "Cloud Run revision suffix: ${SAFE_VERSION}"
 
       # ── DOCKER AUTH ───────────────────────────────────────────────────
       - name: 🔐 Configure Docker for Artifact Registry
@@ -98,18 +108,22 @@ jobs:
       # ── DEPLOY TO CLOUD RUN ───────────────────────────────────────────
       - name: 🚀 Deploy to Cloud Run (Prod)
         shell: bash
+        env:
+          IMAGE: ${{ vars.REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.REPO_NAME }}/${{ vars.REPO_NAME }}:${{ env.VERSION }}
+          CLOUD_RUN_SERVICE: ${{ vars.SERVICE_NAME }}-prod
+          CLOUD_RUN_REGION: ${{ vars.REGION }}
+          CLOUD_RUN_RUNTIME_SA: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          REVISION_SUFFIX: ${{ env.SAFE_VERSION }}
         run: |
           set -euo pipefail
 
-          IMAGE="${{ vars.REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.REPO_NAME }}/${{ vars.REPO_NAME }}:${VERSION}"
-
-          gcloud run deploy "${{ vars.SERVICE_NAME }}-prod" \
+          gcloud run deploy "$CLOUD_RUN_SERVICE" \
             --image "$IMAGE" \
-            --region "${{ vars.REGION }}" \
+            --region "$CLOUD_RUN_REGION" \
             --platform managed \
             --allow-unauthenticated \
-            --service-account "${{ secrets.WIF_SERVICE_ACCOUNT }}" \
-            --revision-suffix "${SAFE_VERSION}"
+            --service-account "$CLOUD_RUN_RUNTIME_SA" \
+            --revision-suffix "$REVISION_SUFFIX"
 
       # ── CREATE GIT TAG ────────────────────────────────────────────────
       - name: 🏷️ Create PROD Git tag
@@ -120,25 +134,32 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
-            echo "Tag already exists: ${VERSION}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1; then
+            echo "ERROR: Remote tag ${VERSION} already exists."
             exit 1
           fi
 
           git tag "${VERSION}"
-          git push origin "${VERSION}"
+          git push origin "refs/tags/${VERSION}"
 
       # ── DEPLOYMENT SUMMARY ────────────────────────────────────────────
       - name: 📋 Summary
         if: always()
         shell: bash
+        env:
+          DEPLOY_STATUS: ${{ job.status }}
+          DEPLOY_VERSION: ${{ env.VERSION }}
+          DEPLOY_SERVICE: ${{ vars.SERVICE_NAME }}-prod
+          DEPLOY_REGION: ${{ vars.REGION }}
         run: |
+          set -euo pipefail
+
           {
             echo "### Frontend Production Deployment"
             echo ""
-            echo "- **Status:** ${{ job.status }}"
-            echo "- **Version:** ${VERSION:-Not generated}"
-            echo "- **Service:** ${{ vars.SERVICE_NAME }}-prod"
-            echo "- **Region:** ${{ vars.REGION }}"
+            echo "- **Status:** ${DEPLOY_STATUS}"
+            echo "- **Version:** ${DEPLOY_VERSION:-Not generated}"
+            echo "- **Service:** ${DEPLOY_SERVICE}"
+            echo "- **Region:** ${DEPLOY_REGION}"
             echo "- **Authentication:** Workload Identity Federation"
-          } >> "$GITHUB_STEP_SUMMAR
+          } >> "$GITHUB_STEP_SUMMARY"
