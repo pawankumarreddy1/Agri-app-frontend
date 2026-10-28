@@ -17,7 +17,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production
+    environment: main
 
     steps:
       # ── CHECKOUT ──────────────────────────────────────────────────────────
