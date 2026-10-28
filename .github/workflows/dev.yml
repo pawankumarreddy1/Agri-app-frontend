@@ -1,4 +1,4 @@
-name: 🚀 Deploy Frontend (prod)
+name: 🚀 Deploy Frontend (Prod)
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: main
+    environment: production
 
     steps:
       # ── CHECKOUT ──────────────────────────────────────────────────────────
@@ -25,20 +25,20 @@ jobs:
       - name: 🔐 Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}       # or ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}           # or ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
       - name: ☁️ Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
 
-      # ── VERSIONING (dev-vX.Y.Z) ───────────────────────────────────────────
-      - name: 🏷️ Generate DEV semantic version
+      # ── VERSIONING (vX.Y.Z) ───────────────────────────────────────────────
+      - name: 🏷️ Generate PROD semantic version
         run: |
           set -e
           git fetch --tags
-          PREFIX="dev-v"
+          PREFIX="v"
           LAST_TAG=$(git tag -l "${PREFIX}[0-9]*.[0-9]*.[0-9]*" \
             | sort -V \
             | tail -n 1)
@@ -52,7 +52,7 @@ jobs:
           SAFE_VERSION=$(echo "${VERSION#${PREFIX}}" | tr '.' '-')
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "SAFE_VERSION=$SAFE_VERSION" >> $GITHUB_ENV
-          echo "Dev Version: $VERSION"
+          echo "Prod Version: $VERSION"
           echo "Revision suffix: $SAFE_VERSION"
 
       # ── DOCKER AUTH ───────────────────────────────────────────────────────
@@ -72,9 +72,9 @@ jobs:
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
 
       # ── DEPLOY ────────────────────────────────────────────────────────────
-      - name: 🚀 Deploy to Cloud Run (Dev)
+      - name: 🚀 Deploy to Cloud Run (Prod)
         run: |
-          gcloud run deploy ${{ vars.SERVICE_NAME }}-dev \
+          gcloud run deploy ${{ vars.SERVICE_NAME }}-prod \
             --image ${{ vars.REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.REPO_NAME }}/${{ vars.REPO_NAME }}:${{ env.VERSION }} \
             --region ${{ vars.REGION }} \
             --platform managed \
@@ -83,7 +83,7 @@ jobs:
             --revision-suffix "${{ env.SAFE_VERSION }}"
 
       # ── GIT TAG ───────────────────────────────────────────────────────────
-      - name: 🏷️ Create DEV Git tag
+      - name: 🏷️ Create PROD Git tag
         run: |
           set -e
           git config user.name "github-actions"
@@ -98,7 +98,7 @@ jobs:
       # ── SUMMARY ───────────────────────────────────────────────────────────
       - name: 📋 Summary
         run: |
-          echo "### ✅ Frontend Dev Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Frontend Prod Deployment Complete" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ env.VERSION }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Service:** ${{ vars.SERVICE_NAME }}-dev" >> $GITHUB_STEP_SUMMARY
+          echo "**Service:** ${{ vars.SERVICE_NAME }}-prod" >> $GITHUB_STEP_SUMMARY
           echo "**Region:** ${{ vars.REGION }}" >> $GITHUB_STEP_SUMMARY
